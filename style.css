@@ -1,623 +1,562 @@
-:root {
-  --purple: #6336c8;
-  --light-purple: #8b72ef;
-  --pink: #ff4f9a;
-  --yellow: #ffd84d;
-  --blue: #18a4e0;
-  --green: #25b979;
-  --ink: #302653;
-  --cream: #fffdf8;
+const questions = [
+  {
+    image: "388.png",
+    english: "Knife",
+    chinese: "刀"
+  },
+  {
+    image: "389.png",
+    english: "Moon",
+    chinese: "月"
+  },
+  {
+    image: "390.png",
+    english: "Insect",
+    chinese: "虫"
+  },
+  {
+    image: "391.png",
+    english: "Bamboo",
+    chinese: "竹"
+  },
+  {
+    image: "392.png",
+    english: "Mouth",
+    chinese: "口"
+  },
+  {
+    image: "393.png",
+    english: "Fish",
+    chinese: "鱼"
+  },
+  {
+    image: "394.png",
+    english: "Field",
+    chinese: "田"
+  },
+  {
+    image: "395.png",
+    english: "Vehicle",
+    chinese: "车"
+  },
+  {
+    image: "396.png",
+    english: "Dragon",
+    chinese: "龙"
+  },
+  {
+    image: "397.png",
+    english: "Eye",
+    chinese: "目"
+  }
+];
+
+const app = document.getElementById("app");
+const soundButton = document.getElementById("soundButton");
+
+let currentQuestion = 0;
+let score = 0;
+let selectedAnswer = null;
+
+/* ==================================================
+   MUSIC AND SOUND EFFECTS
+   No external audio files are required.
+================================================== */
+
+let audioContext = null;
+let masterVolume = null;
+let musicTimer = null;
+let musicPosition = 0;
+let soundEnabled = true;
+
+const melody = [
+  523.25, 659.25, 783.99, 659.25,
+  587.33, 698.46, 880.00, 698.46,
+  659.25, 783.99, 987.77, 783.99,
+  587.33, 698.46, 783.99, 523.25
+];
+
+function prepareAudio() {
+  if (!audioContext) {
+    const AudioContext =
+      window.AudioContext || window.webkitAudioContext;
+
+    audioContext = new AudioContext();
+    masterVolume = audioContext.createGain();
+
+    masterVolume.gain.value = soundEnabled ? 0.16 : 0;
+    masterVolume.connect(audioContext.destination);
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
 }
 
-* {
-  box-sizing: border-box;
+function playTone(
+  frequency,
+  duration = 0.15,
+  type = "sine",
+  volume = 0.15,
+  delay = 0
+) {
+  if (!soundEnabled) return;
+
+  prepareAudio();
+
+  const startTime = audioContext.currentTime + delay;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, startTime);
+
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.exponentialRampToValueAtTime(
+    volume,
+    startTime + 0.02
+  );
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.001,
+    startTime + duration
+  );
+
+  oscillator.connect(gain);
+  gain.connect(masterVolume);
+
+  oscillator.start(startTime);
+  oscillator.stop(startTime + duration + 0.05);
 }
 
-body {
-  margin: 0;
-  color: var(--ink);
-  font-family: "Trebuchet MS", Arial, "Microsoft YaHei", sans-serif;
-  background: #7357df;
+function startBackgroundMusic() {
+  if (!soundEnabled || musicTimer) return;
+
+  prepareAudio();
+
+  musicPosition = 0;
+
+  musicTimer = setInterval(() => {
+    if (!soundEnabled) return;
+
+    const note = melody[musicPosition % melody.length];
+
+    playTone(note, 0.22, "triangle", 0.045);
+
+    if (musicPosition % 4 === 0) {
+      playTone(note / 2, 0.3, "sine", 0.025);
+    }
+
+    musicPosition++;
+  }, 330);
 }
 
-button {
-  font: inherit;
+function stopBackgroundMusic() {
+  clearInterval(musicTimer);
+  musicTimer = null;
 }
 
-.shell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 25px 14px;
-
-  background:
-    radial-gradient(circle at 8% 12%, #ffd84d 0 3%, transparent 3.2%),
-    radial-gradient(circle at 92% 18%, #60e5cd 0 5%, transparent 5.2%),
-    radial-gradient(circle at 12% 88%, #ff75ae 0 4%, transparent 4.2%),
-    radial-gradient(circle at 88% 85%, #8fd8ff 0 4%, transparent 4.2%),
-    linear-gradient(145deg, #7459e8, #4d36c2);
+function playButtonSound() {
+  playTone(440, 0.08, "sine", 0.07);
+  playTone(554.37, 0.1, "sine", 0.06, 0.06);
 }
 
-.card {
-  width: min(860px, 100%);
-  overflow: hidden;
-
-  background: var(--cream);
-  border: 5px solid white;
-  border-radius: 32px;
-
-  box-shadow:
-    0 18px 0 rgba(57, 39, 149, 0.35),
-    0 26px 55px rgba(38, 24, 121, 0.4);
+function playCorrectSound() {
+  playTone(523.25, 0.16, "triangle", 0.16);
+  playTone(659.25, 0.16, "triangle", 0.16, 0.12);
+  playTone(783.99, 0.28, "triangle", 0.18, 0.24);
 }
 
-.colour-stripe {
-  height: 12px;
+function playWrongSound() {
+  playTone(220, 0.17, "sawtooth", 0.08);
+  playTone(174.61, 0.25, "sawtooth", 0.07, 0.14);
+}
 
-  background: repeating-linear-gradient(
-    90deg,
-    #ff4f9a 0 70px,
-    #ffd84d 70px 140px,
-    #18a4e0 140px 210px,
-    #60d8b8 210px 280px
+function playFinishSound() {
+  const notes = [
+    523.25,
+    659.25,
+    783.99,
+    1046.5
+  ];
+
+  notes.forEach((note, index) => {
+    playTone(
+      note,
+      index === notes.length - 1 ? 0.5 : 0.18,
+      "triangle",
+      0.15,
+      index * 0.13
+    );
+  });
+}
+
+function updateSoundButton() {
+  soundButton.textContent = soundEnabled
+    ? "🔊 Sound"
+    : "🔇 Sound";
+
+  soundButton.classList.toggle("muted", !soundEnabled);
+
+  soundButton.setAttribute(
+    "aria-label",
+    soundEnabled ? "Turn sound off" : "Turn sound on"
   );
 }
 
-/* SOUND BUTTON */
+soundButton.addEventListener("click", () => {
+  soundEnabled = !soundEnabled;
 
-.sound-button {
-  position: fixed;
-  z-index: 100;
-  top: 16px;
-  right: 16px;
+  if (audioContext && masterVolume) {
+    masterVolume.gain.value = soundEnabled ? 0.16 : 0;
+  }
 
-  padding: 10px 15px;
+  if (soundEnabled) {
+    prepareAudio();
+    playButtonSound();
+    startBackgroundMusic();
+  } else {
+    stopBackgroundMusic();
+  }
 
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 900;
+  updateSoundButton();
+});
 
-  background: white;
-  border: 3px solid var(--yellow);
-  border-radius: 999px;
+/* ==================================================
+   GAME
+================================================== */
 
-  box-shadow: 0 5px 0 #d3a91d;
-  cursor: pointer;
+function page(content) {
+  return `
+    <section class="shell">
+      <div class="card">
+        <div class="colour-stripe"></div>
+        ${content}
+      </div>
+    </section>
+  `;
 }
 
-.sound-button:hover {
-  transform: translateY(-2px);
+function showWelcomeScreen() {
+  app.innerHTML = page(`
+    <section class="welcome">
+      <div class="mascot" aria-hidden="true">🐉</div>
+
+      <p class="eyebrow">
+        ✨ ANCIENT CHINESE ADVENTURE ✨
+      </p>
+
+      <h1>Oracle Word Quest!</h1>
+
+      <p class="chinese-title">
+        甲骨文猜字游戏
+      </p>
+
+      <p class="intro">
+        Travel back in time, study each mystery symbol
+        and unlock the modern Chinese word!
+      </p>
+
+      <div class="rules">
+        <span>🔎 10 mysteries</span>
+        <span>🎯 3 choices</span>
+        <span>⭐ Earn stars</span>
+      </div>
+
+      <button
+        class="primary-button"
+        type="button"
+        onclick="startGame()"
+      >
+        Let's Play! 开始游戏 →
+      </button>
+    </section>
+  `);
 }
 
-.sound-button:active {
-  transform: translateY(3px);
-  box-shadow: 0 2px 0 #d3a91d;
+function startGame() {
+  prepareAudio();
+  playButtonSound();
+  startBackgroundMusic();
+
+  currentQuestion = 0;
+  score = 0;
+  selectedAnswer = null;
+
+  showQuestion();
 }
 
-.sound-button.muted {
-  color: #6f6981;
-  background: #ebe7f2;
-  border-color: #cfc7dd;
-  box-shadow: 0 5px 0 #afa6bd;
-}
+function getChoices(questionIndex) {
+  const correctAnswer = questions[questionIndex];
 
-/* WELCOME SCREEN */
+  const otherAnswers = questions
+    .filter((question, index) => index !== questionIndex)
+    .sort((first, second) => {
+      const firstNumber =
+        (questionIndex * 7 + first.chinese.charCodeAt(0)) % 17;
 
-.welcome,
-.result {
-  padding: 38px clamp(22px, 6vw, 68px) 50px;
-  text-align: center;
-}
+      const secondNumber =
+        (questionIndex * 7 + second.chinese.charCodeAt(0)) % 17;
 
-.mascot {
-  font-size: 82px;
-  filter: drop-shadow(0 8px 0 rgba(55, 36, 105, 0.15));
-  animation: float 2.2s ease-in-out infinite;
-}
+      return firstNumber - secondNumber;
+    })
+    .slice(0, 2);
 
-.eyebrow {
-  margin: 6px 0 12px;
+  return [correctAnswer, ...otherAnswers].sort(
+    (first, second) => {
+      const firstNumber =
+        (first.chinese.charCodeAt(0) + questionIndex) % 3;
 
-  color: var(--pink);
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-}
+      const secondNumber =
+        (second.chinese.charCodeAt(0) + questionIndex) % 3;
 
-h1 {
-  margin: 0;
-
-  color: var(--purple);
-  font-size: clamp(31px, 6vw, 55px);
-  font-weight: 1000;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-
-  text-shadow: 0 3px 0 #e6dcff;
-}
-
-.chinese-title {
-  margin: 8px 0 20px;
-
-  color: #ea468d;
-  font-size: 26px;
-  font-weight: 900;
-}
-
-.intro {
-  max-width: 610px;
-  margin: auto;
-
-  color: #5d5278;
-  font-size: 18px;
-  line-height: 1.55;
-}
-
-.rules {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-
-  margin: 25px 0;
-}
-
-.rules span {
-  padding: 9px 15px;
-
-  font-size: 14px;
-  font-weight: 900;
-
-  background: #f1ebff;
-  border: 2px solid #d4c4ff;
-  border-radius: 999px;
-}
-
-/* MAIN BUTTONS */
-
-.primary-button,
-.next-button {
-  padding: 15px 25px;
-
-  color: white;
-  font-weight: 1000;
-
-  background: linear-gradient(180deg, #ff66a7, #f23987);
-  border: 0;
-  border-radius: 16px;
-
-  box-shadow:
-    0 6px 0 #b92565,
-    0 10px 20px rgba(255, 79, 154, 0.2);
-
-  cursor: pointer;
-  transition: 0.15s;
-}
-
-.primary-button:hover,
-.next-button:hover {
-  transform: translateY(-2px) scale(1.02);
-}
-
-.primary-button:active,
-.next-button:active {
-  transform: translateY(4px);
-  box-shadow: 0 2px 0 #b92565;
-}
-
-/* QUIZ */
-
-.quiz {
-  padding: 25px clamp(16px, 4vw, 42px) 34px;
-}
-
-.quiz-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.quiz h1 {
-  font-size: clamp(25px, 4vw, 36px);
-}
-
-.chinese-prompt {
-  margin: 5px 0 0;
-
-  color: #70648e;
-  font-weight: 700;
-}
-
-.score-box {
-  flex: 0 0 auto;
-  padding: 8px 15px;
-
-  font-size: 12px;
-  font-weight: 900;
-  text-align: center;
-
-  background: #fff1a9;
-  border: 3px solid var(--yellow);
-  border-radius: 18px;
-
-  transform: rotate(2deg);
-}
-
-.score-box strong {
-  color: #ec3d88;
-  font-size: 27px;
-}
-
-.progress-text {
-  display: flex;
-  justify-content: space-between;
-
-  margin: 18px 0 7px;
-
-  color: #675a84;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.progress-bar {
-  height: 13px;
-  overflow: hidden;
-
-  background: #e8e0f7;
-  border: 2px solid #d9cff0;
-  border-radius: 999px;
-}
-
-.progress-fill {
-  display: block;
-  height: 100%;
-
-  background: linear-gradient(
-    90deg,
-    #ffd84d,
-    #ff8d58,
-    #ff4f9a
+      return firstNumber - secondNumber;
+    }
   );
-
-  transition: width 0.4s;
 }
 
-/* ORACLE SYMBOL */
+function showQuestion() {
+  const question = questions[currentQuestion];
+  const choices = getChoices(currentQuestion);
 
-.symbol-wrapper {
-  position: relative;
+  const percentage =
+    ((currentQuestion + 1) / questions.length) * 100;
 
-  width: min(340px, 78vw);
-  margin: 20px auto;
-}
+  const choiceButtons = choices
+    .map((choice, index) => {
+      const isCorrect =
+        selectedAnswer &&
+        choice.chinese === question.chinese;
 
-.mystery-label {
-  position: absolute;
-  z-index: 2;
-  top: -10px;
-  left: 50%;
+      const isWrong =
+        selectedAnswer === choice.chinese &&
+        choice.chinese !== question.chinese;
 
-  padding: 6px 20px;
+      let answerClass = "";
+      let answerMark = "";
 
-  font-size: 11px;
-  font-weight: 1000;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
+      if (isCorrect) {
+        answerClass = "correct";
+        answerMark = "✓";
+      }
 
-  background: var(--yellow);
-  box-shadow: 0 3px 0 #d7a91c;
+      if (isWrong) {
+        answerClass = "wrong";
+        answerMark = "×";
+      }
 
-  transform: translateX(-50%) rotate(-2deg);
-}
+      return `
+        <button
+          class="choice ${answerClass}"
+          type="button"
+          onclick="selectAnswer('${choice.chinese}')"
+          ${selectedAnswer ? "disabled" : ""}
+        >
+          <span class="choice-letter">
+            ${String.fromCharCode(65 + index)}
+          </span>
 
-.symbol-card {
-  display: grid;
-  place-items: center;
+          <span class="hanzi">
+            ${choice.chinese}
+          </span>
 
-  height: 300px;
-  padding: 5px;
-  overflow: hidden;
+          <span class="divider">•</span>
 
-  background: #ffd9a6;
-  border: 5px solid white;
-  border-radius: 25px;
+          <span class="english">
+            ${choice.english}
+          </span>
 
-  box-shadow:
-    0 8px 0 #e2a85d,
-    0 13px 24px rgba(114, 80, 20, 0.18);
-}
+          <span class="answer-mark">
+            ${answerMark}
+          </span>
+        </button>
+      `;
+    })
+    .join("");
 
-.symbol-card img {
-  width: 100%;
-  height: 100%;
+  let feedback = "";
 
-  object-fit: contain;
-  mix-blend-mode: multiply;
-}
+  if (selectedAnswer) {
+    const wasCorrect =
+      selectedAnswer === question.chinese;
 
-/* ANSWERS */
+    feedback = `
+      <section
+        class="feedback ${wasCorrect ? "" : "incorrect"}"
+        role="status"
+      >
+        <div>
+          <strong>
+            ${
+              wasCorrect
+                ? "🌟 Amazing! 答对了！"
+                : "💪 Good try! 再试试看！"
+            }
+          </strong>
 
-.choices {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 11px;
+          <p>
+            The answer is
+            <b>${question.chinese} · ${question.english}</b>.
+          </p>
+        </div>
 
-  max-width: 650px;
-  margin: 0 auto;
-}
-
-.choice {
-  display: grid;
-  grid-template-columns: 44px 80px 22px 1fr 36px;
-  align-items: center;
-
-  min-height: 68px;
-  padding: 8px 15px;
-
-  color: var(--ink);
-  text-align: left;
-
-  background: white;
-  border: 3px solid #ddd3f3;
-  border-radius: 18px;
-
-  box-shadow: 0 4px 0 #d5caec;
-
-  cursor: pointer;
-  transition: 0.16s;
-}
-
-.choice:nth-child(1) {
-  border-color: #8fd8ff;
-}
-
-.choice:nth-child(2) {
-  border-color: #ffb2d2;
-}
-
-.choice:nth-child(3) {
-  border-color: #8de4cb;
-}
-
-.choice:hover:not(:disabled) {
-  transform: translateY(-3px) scale(1.01);
-  box-shadow: 0 7px 0 #cfc2ec;
-}
-
-.choice:disabled {
-  cursor: default;
-}
-
-.choice-letter {
-  display: grid;
-  place-items: center;
-
-  width: 34px;
-  height: 34px;
-
-  color: white;
-  font-weight: 1000;
-
-  background: #6b4dd3;
-  border-radius: 12px;
-}
-
-.hanzi {
-  font-family: "Microsoft YaHei", serif;
-  font-size: 31px;
-  font-weight: 1000;
-  white-space: nowrap;
-}
-
-.divider {
-  color: #c0b4da;
-  font-weight: 900;
-}
-
-.english {
-  font-size: 18px;
-  font-weight: 900;
-  overflow-wrap: anywhere;
-}
-
-.answer-mark {
-  font-size: 27px;
-  font-weight: 1000;
-}
-
-.choice.correct {
-  background: #e6fff4;
-  border-color: var(--green);
-  box-shadow: 0 5px 0 #25a66f;
-}
-
-.choice.correct .answer-mark {
-  color: var(--green);
-}
-
-.choice.wrong {
-  background: #fff0f2;
-  border-color: #ff5b70;
-  box-shadow: 0 5px 0 #e44158;
-}
-
-.choice.wrong .answer-mark {
-  color: #ef4059;
-}
-
-/* FEEDBACK */
-
-.feedback {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-
-  max-width: 650px;
-  margin: 16px auto 0;
-  padding: 14px 15px 14px 18px;
-
-  background: #dffbef;
-  border: 3px solid #68d7ad;
-  border-radius: 18px;
-}
-
-.feedback.incorrect {
-  background: #fff0d8;
-  border-color: #ffbd61;
-}
-
-.feedback strong {
-  font-size: 18px;
-}
-
-.feedback p {
-  margin: 3px 0 0;
-}
-
-.next-button {
-  padding: 12px 17px;
-  white-space: nowrap;
-  box-shadow: 0 4px 0 #b92565;
-}
-
-/* RESULTS */
-
-.confetti {
-  font-size: 35px;
-  letter-spacing: 10px;
-}
-
-.trophy {
-  font-size: 74px;
-  animation: pop 0.6s ease;
-}
-
-.score-ring {
-  display: grid;
-  place-content: center;
-
-  width: 155px;
-  height: 155px;
-  margin: 25px auto;
-
-  background: #fff3ad;
-  border: 10px solid var(--yellow);
-  border-radius: 50%;
-
-  box-shadow:
-    0 0 0 8px white,
-    0 0 0 12px #ff81b7;
-}
-
-.score-ring strong {
-  color: var(--pink);
-  font-size: 57px;
-  line-height: 0.9;
-}
-
-.score-ring span {
-  margin-top: 8px;
-  font-weight: 900;
-}
-
-.result-message {
-  margin-bottom: 25px;
-  color: #655a7e;
-  font-weight: 700;
-}
-
-/* ANIMATIONS */
-
-@keyframes float {
-  50% {
-    transform: translateY(-8px) rotate(3deg);
-  }
-}
-
-@keyframes pop {
-  0% {
-    transform: scale(0.2) rotate(-15deg);
+        <button
+          class="next-button"
+          type="button"
+          onclick="nextQuestion()"
+        >
+          ${
+            currentQuestion === questions.length - 1
+              ? "See Results 查看成绩"
+              : "Next 下一题 →"
+          }
+        </button>
+      </section>
+    `;
   }
 
-  70% {
-    transform: scale(1.15);
-  }
+  app.innerHTML = page(`
+    <section class="quiz">
+      <header class="quiz-header">
+        <div>
+          <p class="eyebrow">
+            🔍 MYSTERY SYMBOL
+          </p>
+
+          <h1>What does this symbol mean?</h1>
+
+          <p class="chinese-prompt">
+            这个甲骨文是什么意思？
+          </p>
+        </div>
+
+        <div class="score-box">
+          ⭐ Stars<br>
+          <strong>${score}</strong>
+        </div>
+      </header>
+
+      <div class="progress-text">
+        <span>
+          Question 题目 ${currentQuestion + 1}
+          of ${questions.length}
+        </span>
+
+        <span>${Math.round(percentage)}%</span>
+      </div>
+
+      <div class="progress-bar">
+        <span
+          class="progress-fill"
+          style="width: ${percentage}%"
+        ></span>
+      </div>
+
+      <div class="symbol-wrapper">
+        <div class="mystery-label">
+          MYSTERY #${currentQuestion + 1}
+        </div>
+
+        <div class="symbol-card">
+          <img
+            src="images/${question.image}"
+            alt="Oracle-bone symbol for question ${currentQuestion + 1}"
+          >
+        </div>
+      </div>
+
+      <div class="choices">
+        ${choiceButtons}
+      </div>
+
+      ${feedback}
+    </section>
+  `);
 }
 
-/* MOBILE */
+function selectAnswer(chineseAnswer) {
+  if (selectedAnswer) return;
 
-@media (max-width: 560px) {
-  .shell {
-    padding: 10px;
+  selectedAnswer = chineseAnswer;
+
+  const correctAnswer =
+    questions[currentQuestion].chinese;
+
+  if (chineseAnswer === correctAnswer) {
+    score++;
+    playCorrectSound();
+  } else {
+    playWrongSound();
   }
 
-  .card {
-    border-radius: 24px;
-  }
-
-  .sound-button {
-    top: 8px;
-    right: 8px;
-    padding: 8px 11px;
-    font-size: 12px;
-  }
-
-  .quiz {
-    padding: 55px 12px 25px;
-  }
-
-  .quiz-header .eyebrow {
-    display: none;
-  }
-
-  .quiz h1 {
-    font-size: 24px;
-  }
-
-  .score-box {
-    padding: 6px 10px;
-  }
-
-  .symbol-card {
-    height: 250px;
-  }
-
-  .choice {
-    grid-template-columns: 39px 54px 16px 1fr 28px;
-    padding: 7px 10px;
-  }
-
-  .hanzi {
-    font-size: 27px;
-  }
-
-  .english {
-    font-size: 17px;
-  }
-
-  .feedback {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .next-button {
-    width: 100%;
-  }
-
-  .welcome {
-    padding-top: 60px;
-  }
-
-  .mascot {
-    font-size: 67px;
-  }
+  showQuestion();
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
+function nextQuestion() {
+  playButtonSound();
+
+  if (currentQuestion === questions.length - 1) {
+    showResults();
+    return;
   }
+
+  currentQuestion++;
+  selectedAnswer = null;
+
+  showQuestion();
 }
+
+function showResults() {
+  stopBackgroundMusic();
+  playFinishSound();
+
+  let resultTitle;
+
+  if (score === questions.length) {
+    resultTitle = "Oracle Master! 甲骨文大师！";
+  } else if (score >= 7) {
+    resultTitle = "Great work! 太棒了！";
+  } else {
+    resultTitle = "Good try! 继续加油！";
+  }
+
+  app.innerHTML = page(`
+    <section class="result">
+      <div class="confetti" aria-hidden="true">
+        🎉 ⭐ 🎊
+      </div>
+
+      <div class="trophy" aria-hidden="true">
+        🏆
+      </div>
+
+      <p class="eyebrow">
+        QUEST COMPLETE!
+      </p>
+
+      <h1>${resultTitle}</h1>
+
+      <div class="score-ring">
+        <strong>${score}</strong>
+        <span>/ ${questions.length}</span>
+      </div>
+
+      <p class="result-message">
+        You identified ${score}
+        oracle-bone ${score === 1 ? "word" : "words"}
+        correctly.
+      </p>
+
+      <button
+        class="primary-button"
+        type="button"
+        onclick="startGame()"
+      >
+        Play Again 再玩一次
+      </button>
+    </section>
+  `);
+}
+
+updateSoundButton();
+showWelcomeScreen();
