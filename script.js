@@ -408,11 +408,11 @@ function showWelcomeScreen() {
       </div>
 
       <p class="eyebrow">
-        ✨ ANCIENT CHINESE ADVENTURE ✨
+        ✨ P6 Social Studies ✨
       </p>
 
       <h1>
-        Oracle Word Quest!
+        Oracle Word Quest
       </h1>
 
       <p class="chinese-title">
@@ -457,6 +457,18 @@ function showWelcomeScreen() {
    START GAME
 ================================================== */
 
+/* Randomise the question order each time a new game begins. */
+function shuffleQuestions() {
+  for (let index = questions.length - 1; index > 0; index--) {
+    const randomIndex = Math.floor(
+      Math.random() * (index + 1)
+    );
+
+    [questions[index], questions[randomIndex]] =
+      [questions[randomIndex], questions[index]];
+  }
+}
+
 async function startGame() {
   soundEnabled = true;
 
@@ -466,6 +478,8 @@ async function startGame() {
 
   playButtonSound();
   startBackgroundMusic();
+
+  shuffleQuestions();
 
   currentQuestion = 0;
   score = 0;
